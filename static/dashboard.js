@@ -1,5 +1,5 @@
 // =============================
-// DOM REFERENCES (CRITICAL)
+// DOM REFERENCES
 // =============================
 const loginEmail = document.getElementById("loginEmail");
 const loginPassword = document.getElementById("loginPassword");
@@ -21,24 +21,19 @@ const uploadResult = document.getElementById("uploadResult");
 const accessResult = document.getElementById("accessResult");
 const reuseResult = document.getElementById("reuseResult");
 
-// =============================
-// GLOBAL STATE
-// =============================
 let currentUser = null;
+let busy = false;
 
 // =============================
 // AUTH
 // =============================
 async function login() {
-  loginResult.textContent = "";
+  if (busy) return;
+  busy = true;
+  loginResult.textContent = "Logging in...";
 
   const email = loginEmail.value.trim();
   const password = loginPassword.value.trim();
-
-  if (!email || !password) {
-    loginResult.textContent = "Email and password required";
-    return;
-  }
 
   const res = await fetch("/login", {
     method: "POST",
@@ -47,9 +42,10 @@ async function login() {
   });
 
   const data = await res.json();
+  busy = false;
 
   if (!res.ok) {
-    loginResult.textContent = data.error || "Login failed";
+    loginResult.textContent = data.error;
     return;
   }
 
@@ -63,7 +59,9 @@ async function login() {
 }
 
 async function register() {
-  loginResult.textContent = "";
+  if (busy) return;
+  busy = true;
+  loginResult.textContent = "Registering...";
 
   const res = await fetch("/register", {
     method: "POST",
@@ -75,7 +73,13 @@ async function register() {
   });
 
   const data = await res.json();
-  loginResult.textContent = JSON.stringify(data, null, 2);
+  busy = false;
+
+  if (!res.ok) {
+    loginResult.textContent = data.error;
+  } else {
+    loginResult.textContent = "Registered successfully. Now click LOGIN.";
+  }
 }
 
 function logout() {
@@ -105,14 +109,13 @@ async function loadStats() {
 }
 
 // =============================
-// DOCUMENT LIST
+// DOCUMENTS
 // =============================
 async function loadDocuments() {
   const res = await fetch("/documents");
   const data = await res.json();
 
   docTable.innerHTML = "";
-
   data.forEach(d => {
     const row = document.createElement("tr");
     row.innerHTML = `
@@ -139,12 +142,7 @@ async function upload() {
   });
 
   const data = await res.json();
-  uploadResult.textContent =
-    `Encrypted & stored successfully\nFingerprint:\n${data.fingerprint}`;
-
-  document.getElementById("name").value = "";
-  document.getElementById("text").value = "";
-
+  uploadResult.textContent = "Stored successfully";
   refreshAll();
 }
 
@@ -162,8 +160,6 @@ async function recordAccess() {
   });
 
   accessResult.textContent = JSON.stringify(await res.json(), null, 2);
-  document.getElementById("accessName").value = "";
-
   refreshAll();
 }
 
@@ -181,7 +177,6 @@ async function reuse() {
   });
 
   const data = await res.json();
-
   reuseResult.textContent =
     data.matches.length === 0
       ? "No semantic reuse detected."
@@ -198,7 +193,6 @@ async function loadAudit() {
   const data = await res.json();
 
   auditTable.innerHTML = "";
-
   data.forEach(t => {
     const row = document.createElement("tr");
     row.innerHTML = `
