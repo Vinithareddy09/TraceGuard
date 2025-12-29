@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify
 import sqlite3
 import os
 import hashlib
@@ -7,7 +7,6 @@ from crypto_utils import encrypt_text, decrypt_text, fingerprint, semantic_simil
 from trace_utils import create_trace, verify_trace
 
 app = Flask(__name__)
-app.secret_key = "traceguard-secret-key"  # REQUIRED for session
 DB = "storage.db"
 
 # --------------------------------------------------
@@ -17,7 +16,6 @@ def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
-    # USERS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         email TEXT PRIMARY KEY,
@@ -25,16 +23,14 @@ def init_db():
     )
     """)
 
-    # DOCUMENTS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS documents(
-        name TEXT,
+        name TEXT PRIMARY KEY,
         content BLOB,
-        fingerprint TEXT PRIMARY KEY
+        fingerprint TEXT
     )
     """)
 
-    # AUDIT TRACES TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS traces(
         action TEXT,
@@ -54,15 +50,15 @@ init_db()
 # --------------------------------------------------
 # UTILS
 # --------------------------------------------------
-def hash_password(password: str) -> str:
+def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-
-def require_login():
-    if "user" not in session:
-        return False
-    return True
-
+def safe_json(req, *keys):
+    data = req.json or {}
+    for k in keys:
+        if k not in data or not data[k]:
+            return None, f"Missing field: {k}"
+    return data, None
 
 # --------------------------------------------------
 # UI
@@ -71,25 +67,21 @@ def require_login():
 def dashboard():
     return render_template("dashboard.html")
 
-
 # --------------------------------------------------
-# AUTHENTICATION
+# AUTH
 # --------------------------------------------------
 @app.route("/register", methods=["POST"])
 def register():
-    data = request.json
-    email = data.get("email")
-    password = data.get("password")
-
-    if not email or not password:
-        return jsonify({"error": "Missing credentials"}), 400
+    data, err = safe_json(request, "email", "password")
+    if err:
+        return jsonify({"error": err}), 400
 
     try:
         conn = sqlite3.connect(DB)
         c = conn.cursor()
         c.execute(
             "INSERT INTO users VALUES (?,?)",
-            (email, hash_password(password))
+            (data["email"], hash_password(data["password"]))
         )
         conn.commit()
         conn.close()
@@ -100,15 +92,15 @@ def register():
 
 @app.route("/login", methods=["POST"])
 def login():
-    data = request.json
-    email = data.get("email")
-    password = data.get("password")
+    data, err = safe_json(request, "email", "password")
+    if err:
+        return jsonify({"error": err}), 400
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     c.execute(
         "SELECT * FROM users WHERE email=? AND password_hash=?",
-        (email, hash_password(password))
+        (data["email"], hash_password(data["password"]))
     )
     user = c.fetchone()
     conn.close()
@@ -116,15 +108,7 @@ def login():
     if not user:
         return jsonify({"error": "Invalid credentials"}), 401
 
-    session["user"] = email
-    return jsonify({"status": "login_success", "user": email})
-
-
-@app.route("/logout", methods=["POST"])
-def logout():
-    session.clear()
-    return jsonify({"status": "logged_out"})
-
+    return jsonify({"status": "ok", "user": data["email"]})
 
 # --------------------------------------------------
 # STATS
@@ -155,12 +139,11 @@ def stats():
         "audit_logs": logs
     })
 
-
 # --------------------------------------------------
-# DOCUMENT VAULT
+# DOCUMENTS
 # --------------------------------------------------
 @app.route("/documents")
-def list_documents():
+def documents():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     c.execute("SELECT name, fingerprint FROM documents")
@@ -168,101 +151,68 @@ def list_documents():
     conn.close()
 
     return jsonify([
-        {
-            "name": r[0],
-            "fingerprint": r[1][:12] + "..."
-        } for r in rows
+        {"name": n, "fingerprint": f[:12] + "..."}
+        for n, f in rows
     ])
 
-
 # --------------------------------------------------
-# UPLOAD DOCUMENT
+# UPLOAD
 # --------------------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
-    if not require_login():
-        return jsonify({"error": "Unauthorized"}), 401
+    data, err = safe_json(request, "name", "text", "user")
+    if err:
+        return jsonify({"error": err}), 400
 
-    data = request.json
-    name = data.get("name")
-    text = data.get("text")
-
-    if not name or not text:
-        return jsonify({"error": "Invalid input"}), 400
-
-    fp = fingerprint(text)
+    enc = encrypt_text(data["text"])
+    fp = fingerprint(data["text"])
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-
-    # Prevent duplicate documents
-    c.execute("SELECT * FROM documents WHERE fingerprint=?", (fp,))
-    if c.fetchone():
-        conn.close()
-        return jsonify({
-            "status": "already_exists",
-            "fingerprint": fp
-        })
-
-    enc = encrypt_text(text)
     c.execute(
-        "INSERT INTO documents VALUES (?,?,?)",
-        (name, enc, fp)
+        "INSERT OR REPLACE INTO documents VALUES (?,?,?)",
+        (data["name"], enc, fp)
     )
     conn.commit()
     conn.close()
 
-    save_trace(create_trace("UPLOAD", name, fp, session["user"]))
+    save_trace(create_trace("UPLOAD", data["name"], fp, data["user"]))
 
     return jsonify({
         "status": "stored",
         "fingerprint": fp
     })
 
-
 # --------------------------------------------------
-# ACCESS DOCUMENT
+# ACCESS
 # --------------------------------------------------
 @app.route("/access", methods=["POST"])
 def access():
-    if not require_login():
-        return jsonify({"error": "Unauthorized"}), 401
-
-    data = request.json
-    name = data.get("name")
+    data, err = safe_json(request, "name", "user")
+    if err:
+        return jsonify({"error": err}), 400
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("SELECT fingerprint FROM documents WHERE name=?", (name,))
+    c.execute("SELECT fingerprint FROM documents WHERE name=?", (data["name"],))
     row = c.fetchone()
     conn.close()
 
     if not row:
         return jsonify({"error": "Document not found"}), 404
 
-    save_trace(create_trace(
-        "ACCESS",
-        name,
-        row[0],
-        session["user"]
-    ))
+    save_trace(create_trace("ACCESS", data["name"], row[0], data["user"]))
 
-    return jsonify({"status": "access recorded"})
-
+    return jsonify({"status": "access logged"})
 
 # --------------------------------------------------
-# SEMANTIC REUSE DETECTION
+# REUSE
 # --------------------------------------------------
 @app.route("/reuse_check", methods=["POST"])
 def reuse_check():
-    if not require_login():
-        return jsonify({"error": "Unauthorized"}), 401
-
-    data = request.json
-    text = data.get("text")
-
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
+    data, err = safe_json(request, "text", "user")
+    if err:
+        return jsonify({"error": err}), 400
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -274,28 +224,28 @@ def reuse_check():
 
     for name, enc in rows:
         original = decrypt_text(enc)
-        score = semantic_similarity(text, original)
+        score = semantic_similarity(data["text"], original)
 
-        if score >= 0.45:
+        if score >= 0.6:
             matches.append({
                 "document": name,
                 "similarity": round(score * 100, 2)
             })
-            save_trace(create_trace(
-                "REUSE_DETECTED",
-                name,
-                fingerprint(text),
-                session["user"]
-            ))
+            save_trace(
+                create_trace(
+                    "REUSE_DETECTED",
+                    name,
+                    fingerprint(data["text"]),
+                    data["user"]
+                )
+            )
 
     return jsonify({
-        "method": "Semantic Similarity",
         "matches": matches
     })
 
-
 # --------------------------------------------------
-# AUDIT LOG
+# AUDIT
 # --------------------------------------------------
 @app.route("/audit")
 def audit():
@@ -320,9 +270,8 @@ def audit():
 
     return jsonify(logs)
 
-
 # --------------------------------------------------
-# TRACE STORAGE
+# TRACE SAVE
 # --------------------------------------------------
 def save_trace(trace):
     conn = sqlite3.connect(DB)
@@ -340,7 +289,6 @@ def save_trace(trace):
     )
     conn.commit()
     conn.close()
-
 
 # --------------------------------------------------
 # RUN
