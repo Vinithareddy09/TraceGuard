@@ -157,29 +157,33 @@ def documents():
 # --------------------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
-    data = request.json
-    name = data.get("name")
-    text = data.get("text")
-    user = data.get("user")
+    try:
+        data = request.json
+        name = data["name"]
+        text = data["text"]
+        user = data.get("user")
 
-    if not all([name, text, user]):
-        return jsonify({"error": "Missing data"}), 400
+        enc = encrypt_text(text)
+        fp = fingerprint(text)
 
-    enc = encrypt_text(text)
-    fp = fingerprint(text)
+        conn = sqlite3.connect(DB)
+        c = conn.cursor()
+        c.execute(
+            "INSERT OR REPLACE INTO documents VALUES (?,?,?)",
+            (name, enc, fp)
+        )
+        conn.commit()
+        conn.close()
 
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-    c.execute(
-        "INSERT OR REPLACE INTO documents VALUES (?,?,?)",
-        (name, enc, fp)
-    )
-    conn.commit()
-    conn.close()
+        save_trace(create_trace("UPLOAD", name, fp, user))
 
-    save_trace(create_trace("UPLOAD", name, fp, user))
+        return jsonify({"status": "stored", "fingerprint": fp})
 
-    return jsonify({"status": "stored", "fingerprint": fp})
+    except Exception as e:
+        return jsonify({
+            "error": "Upload failed",
+            "details": str(e)
+        }), 500
 
 # --------------------------------------------------
 # ACCESS
