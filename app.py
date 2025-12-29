@@ -1,24 +1,30 @@
 from flask import Flask, render_template, request, jsonify
 import sqlite3
 import os
+import hashlib
 
-from crypto_utils import (
-    encrypt_text,
-    decrypt_text,
-    fingerprint,
-    semantic_similarity
-)
+from crypto_utils import encrypt_text, decrypt_text, fingerprint, semantic_similarity
 from trace_utils import create_trace, verify_trace
 
 app = Flask(__name__)
 DB = "storage.db"
 
-# ---------- DATABASE ----------
+# --------------------------------------------------
+# DATABASE INITIALIZATION
+# --------------------------------------------------
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
-    # Documents table
+    # USERS TABLE (AUTHENTICATION)
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users(
+        email TEXT PRIMARY KEY,
+        password_hash TEXT
+    )
+    """)
+
+    # DOCUMENTS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS documents(
         name TEXT PRIMARY KEY,
@@ -27,7 +33,7 @@ def init_db():
     )
     """)
 
-    # Traces table (with user identity)
+    # AUDIT TRACES TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS traces(
         action TEXT,
@@ -44,12 +50,72 @@ def init_db():
 
 init_db()
 
-# ---------- UI ----------
+# --------------------------------------------------
+# UTILS
+# --------------------------------------------------
+def hash_password(password: str) -> str:
+    """
+    Hashes password before storage.
+    """
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+# --------------------------------------------------
+# UI
+# --------------------------------------------------
 @app.route("/")
 def dashboard():
     return render_template("dashboard.html")
 
-# ---------- STATS ----------
+
+# --------------------------------------------------
+# AUTHENTICATION
+# --------------------------------------------------
+@app.route("/register", methods=["POST"])
+def register():
+    data = request.json
+    email = data["email"]
+    password = data["password"]
+
+    pw_hash = hash_password(password)
+
+    try:
+        conn = sqlite3.connect(DB)
+        c = conn.cursor()
+        c.execute("INSERT INTO users VALUES (?,?)", (email, pw_hash))
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "registered"})
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "User already exists"}), 400
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.json
+    email = data["email"]
+    password = data["password"]
+
+    pw_hash = hash_password(password)
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute(
+        "SELECT * FROM users WHERE email=? AND password_hash=?",
+        (email, pw_hash)
+    )
+    user = c.fetchone()
+    conn.close()
+
+    if not user:
+        return jsonify({"error": "Invalid credentials"}), 401
+
+    return jsonify({"status": "login_success", "user": email})
+
+
+# --------------------------------------------------
+# STATS
+# --------------------------------------------------
 @app.route("/stats")
 def stats():
     conn = sqlite3.connect(DB)
@@ -76,7 +142,10 @@ def stats():
         "audit_logs": logs
     })
 
-# ---------- DOCUMENT VAULT ----------
+
+# --------------------------------------------------
+# DOCUMENT VAULT
+# --------------------------------------------------
 @app.route("/documents")
 def list_documents():
     conn = sqlite3.connect(DB)
@@ -92,12 +161,16 @@ def list_documents():
         } for r in rows
     ])
 
-# ---------- UPLOAD ----------
+
+# --------------------------------------------------
+# UPLOAD DOCUMENT
+# --------------------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
     data = request.json
     name = data["name"]
     text = data["text"]
+    user = data.get("user")  # authenticated user
 
     enc = encrypt_text(text)
     fp = fingerprint(text)
@@ -111,18 +184,19 @@ def upload():
     conn.commit()
     conn.close()
 
-    save_trace(create_trace("UPLOAD", name, fp, None))
+    save_trace(create_trace("UPLOAD", name, fp, user))
 
-    return jsonify({
-        "status": "stored",
-        "fingerprint": fp
-    })
+    return jsonify({"status": "stored", "fingerprint": fp})
 
-# ---------- ACCESS ----------
+
+# --------------------------------------------------
+# ACCESS DOCUMENT (LOGICAL ACCESS)
+# --------------------------------------------------
 @app.route("/access", methods=["POST"])
 def access():
-    name = request.json["name"]
-    user = request.json.get("user")
+    data = request.json
+    name = data["name"]
+    user = data["user"]
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -134,13 +208,17 @@ def access():
         return jsonify({"error": "Document not found"}), 404
 
     save_trace(create_trace("ACCESS", name, row[0], user))
-
     return jsonify({"status": "access recorded"})
 
-# ---------- SEMANTIC REUSE ----------
+
+# --------------------------------------------------
+# SEMANTIC REUSE DETECTION
+# --------------------------------------------------
 @app.route("/reuse_check", methods=["POST"])
 def reuse_check():
-    text = request.json["text"]
+    data = request.json
+    text = data["text"]
+    user = data.get("user")
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -151,8 +229,8 @@ def reuse_check():
     matches = []
 
     for name, enc in rows:
-        original_text = decrypt_text(enc)
-        score = semantic_similarity(text, original_text)
+        original = decrypt_text(enc)
+        score = semantic_similarity(text, original)
 
         if score >= 0.6:
             matches.append({
@@ -164,7 +242,7 @@ def reuse_check():
                     "REUSE_DETECTED",
                     name,
                     fingerprint(text),
-                    None
+                    user
                 )
             )
 
@@ -173,7 +251,10 @@ def reuse_check():
         "matches": matches
     })
 
-# ---------- AUDIT ----------
+
+# --------------------------------------------------
+# AUDIT LOG
+# --------------------------------------------------
 @app.route("/audit")
 def audit():
     conn = sqlite3.connect(DB)
@@ -197,7 +278,10 @@ def audit():
 
     return jsonify(logs)
 
-# ---------- TRACE SAVE ----------
+
+# --------------------------------------------------
+# TRACE STORAGE
+# --------------------------------------------------
 def save_trace(trace):
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -215,7 +299,10 @@ def save_trace(trace):
     conn.commit()
     conn.close()
 
-# ---------- RUN ----------
+
+# --------------------------------------------------
+# RUN
+# --------------------------------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)

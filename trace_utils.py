@@ -1,39 +1,52 @@
 import hashlib
 import time
+import json
 
 def create_trace(action, document, fingerprint, user=None):
     """
-    Creates a verifiable trace entry for every sensitive event
-    (upload, access, reuse detection)
+    Creates a tamper-proof audit trace.
+
+    This trace proves:
+    - WHAT happened (action)
+    - WHICH document
+    - WHICH user (identity)
+    - WHEN it happened
     """
 
-    trace = {
+    trace_data = {
         "action": action,
         "document": document,
         "fingerprint": fingerprint,
         "user": user,
-        "timestamp": time.time()
+        "timestamp": round(time.time(), 3)
     }
 
-    # Cryptographic proof (integrity hash)
-    trace["proof"] = hashlib.sha256(
-        str(trace).encode()
-    ).hexdigest()
+    # Canonical serialization (important for verification)
+    serialized = json.dumps(trace_data, sort_keys=True)
 
-    return trace
+    # Cryptographic integrity proof
+    proof = hashlib.sha256(serialized.encode()).hexdigest()
+
+    trace_data["proof"] = proof
+    return trace_data
 
 
 def verify_trace(trace):
     """
-    Verifies whether a trace entry was tampered with.
-    If any field changes, proof verification fails.
+    Verifies if a trace has been tampered with.
+
+    If ANY field changes (user, time, document, etc),
+    verification will FAIL.
     """
 
+    proof = trace.get("proof")
+    if not proof:
+        return False
+
     temp = trace.copy()
-    original_proof = temp.pop("proof")
+    temp.pop("proof")
 
-    recalculated = hashlib.sha256(
-        str(temp).encode()
-    ).hexdigest()
+    serialized = json.dumps(temp, sort_keys=True)
+    recalculated = hashlib.sha256(serialized.encode()).hexdigest()
 
-    return recalculated == original_proof
+    return recalculated == proof

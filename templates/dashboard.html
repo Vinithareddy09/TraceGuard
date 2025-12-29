@@ -8,6 +8,23 @@
 
 <body>
 
+<!-- ================= LOGIN SCREEN ================= -->
+<div id="loginScreen" class="login-container">
+  <h2>TraceGuard</h2>
+  <p class="subtitle">Secure Access Required</p>
+
+  <input id="loginEmail" placeholder="Email ID">
+  <input id="loginPassword" type="password" placeholder="Password">
+
+  <button onclick="login()">Login</button>
+  <button class="secondary" onclick="register()">Register</button>
+
+  <pre id="loginResult"></pre>
+</div>
+
+<!-- ================= DASHBOARD ================= -->
+<div id="dashboardScreen" style="display:none;">
+
 <aside class="sidebar">
   <h2>TraceGuard</h2>
   <p class="subtitle">Verifiable Semantic Intelligence</p>
@@ -16,8 +33,9 @@
     <a href="#dashboard">Dashboard</a>
     <a href="#upload">Upload</a>
     <a href="#accessSection">Access</a>
-    <a href="#reuse">Reuse Detection</a>
-    <a href="#audit">Audit Trail</a>
+    <a href="#reuse">Reuse</a>
+    <a href="#audit">Audit</a>
+    <a href="#" onclick="logout()">Logout</a>
   </nav>
 </aside>
 
@@ -26,7 +44,10 @@
   <header>
     <h1>Secure Document Intelligence Dashboard</h1>
     <p class="desc">
-      Encrypted storage, semantic reuse detection, and verifiable access logging
+      Encrypted storage • Verified access • Semantic reuse detection
+    </p>
+    <p class="user-info">
+      Logged in as: <strong id="currentUser"></strong>
     </p>
   </header>
 
@@ -44,7 +65,7 @@
     <table>
       <thead>
         <tr>
-          <th>Document Name</th>
+          <th>Document</th>
           <th>Fingerprint</th>
           <th>Status</th>
         </tr>
@@ -65,7 +86,6 @@
   <!-- ACCESS -->
   <section class="card" id="accessSection">
     <h2>Record Document Access</h2>
-    <input id="userId" placeholder="User ID (email / roll no)">
     <input id="accessName" placeholder="Document name">
     <button onclick="recordAccess()">Record Access</button>
     <pre id="accessResult"></pre>
@@ -74,7 +94,7 @@
   <!-- REUSE -->
   <section class="card" id="reuse">
     <h2>Semantic Reuse Detection</h2>
-    <textarea id="reuseText" placeholder="Paste text to check for reuse"></textarea>
+    <textarea id="reuseText" placeholder="Paste text to check reuse"></textarea>
     <button onclick="reuse()">Analyze Similarity</button>
     <pre id="reuseResult"></pre>
   </section>
@@ -96,6 +116,7 @@
   </section>
 
 </main>
+</div>
 
 <script src="/static/dashboard.js"></script>
 </body>
