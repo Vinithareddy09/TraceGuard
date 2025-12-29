@@ -1,206 +1,212 @@
-// =============================
-// DOM REFERENCES
-// =============================
-const loginEmail = document.getElementById("loginEmail");
-const loginPassword = document.getElementById("loginPassword");
-const loginResult = document.getElementById("loginResult");
+// ==================================================
+// EVERYTHING RUNS ONLY AFTER DOM IS READY
+// ==================================================
+window.onload = () => {
 
-const loginScreen = document.getElementById("loginScreen");
-const dashboardScreen = document.getElementById("dashboardScreen");
-const currentUserEl = document.getElementById("currentUser");
+  // -----------------------------
+  // DOM REFERENCES
+  // -----------------------------
+  const loginEmail = document.getElementById("loginEmail");
+  const loginPassword = document.getElementById("loginPassword");
+  const loginResult = document.getElementById("loginResult");
 
-const docs = document.getElementById("docs");
-const access = document.getElementById("access");
-const reuse = document.getElementById("reuse");
-const logs = document.getElementById("logs");
+  const loginScreen = document.getElementById("loginScreen");
+  const dashboardScreen = document.getElementById("dashboardScreen");
+  const currentUserEl = document.getElementById("currentUser");
 
-const docTable = document.getElementById("docTable");
-const auditTable = document.getElementById("auditTable");
+  const docs = document.getElementById("docs");
+  const access = document.getElementById("access");
+  const reuse = document.getElementById("reuse");
+  const logs = document.getElementById("logs");
 
-const uploadResult = document.getElementById("uploadResult");
-const accessResult = document.getElementById("accessResult");
-const reuseResult = document.getElementById("reuseResult");
+  const docTable = document.getElementById("docTable");
+  const auditTable = document.getElementById("auditTable");
 
-let currentUser = null;
-let busy = false;
+  const uploadResult = document.getElementById("uploadResult");
+  const accessResult = document.getElementById("accessResult");
+  const reuseResult = document.getElementById("reuseResult");
 
-// =============================
-// AUTH
-// =============================
-async function login() {
-  if (busy) return;
-  busy = true;
-  loginResult.textContent = "Logging in...";
+  let currentUser = null;
+  let busy = false;
 
-  const email = loginEmail.value.trim();
-  const password = loginPassword.value.trim();
+  // =============================
+  // AUTH
+  // =============================
+  window.login = async () => {
+    if (busy) return;
+    busy = true;
 
-  const res = await fetch("/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  });
+    loginResult.textContent = "Logging in...";
 
-  const data = await res.json();
-  busy = false;
+    const res = await fetch("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: loginEmail.value.trim(),
+        password: loginPassword.value.trim()
+      })
+    });
 
-  if (!res.ok) {
-    loginResult.textContent = data.error;
-    return;
+    const data = await res.json();
+    busy = false;
+
+    if (!res.ok) {
+      loginResult.textContent = data.error || "Login failed";
+      return;
+    }
+
+    currentUser = data.user;
+    currentUserEl.textContent = currentUser;
+
+    loginScreen.style.display = "none";
+    dashboardScreen.style.display = "block";
+
+    refreshAll();
+  };
+
+  window.register = async () => {
+    if (busy) return;
+    busy = true;
+
+    loginResult.textContent = "Registering...";
+
+    const res = await fetch("/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: loginEmail.value.trim(),
+        password: loginPassword.value.trim()
+      })
+    });
+
+    const data = await res.json();
+    busy = false;
+
+    if (!res.ok) {
+      loginResult.textContent = data.error || "Registration failed";
+    } else {
+      loginResult.textContent = "Registered successfully. Now click LOGIN.";
+    }
+  };
+
+  window.logout = () => location.reload();
+
+  // =============================
+  // REFRESH
+  // =============================
+  async function refreshAll() {
+    await loadStats();
+    await loadDocuments();
+    await loadAudit();
   }
 
-  currentUser = data.user;
-  currentUserEl.textContent = currentUser;
+  // =============================
+  // STATS
+  // =============================
+  async function loadStats() {
+    const res = await fetch("/stats");
+    const data = await res.json();
 
-  loginScreen.style.display = "none";
-  dashboardScreen.style.display = "block";
-
-  refreshAll();
-}
-
-async function register() {
-  if (busy) return;
-  busy = true;
-  loginResult.textContent = "Registering...";
-
-  const res = await fetch("/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      email: loginEmail.value,
-      password: loginPassword.value
-    })
-  });
-
-  const data = await res.json();
-  busy = false;
-
-  if (!res.ok) {
-    loginResult.textContent = data.error;
-  } else {
-    loginResult.textContent = "Registered successfully. Now click LOGIN.";
+    docs.textContent = data.documents;
+    access.textContent = data.accesses;
+    reuse.textContent = data.reuse_events;
+    logs.textContent = data.audit_logs;
   }
-}
 
-function logout() {
-  location.reload();
-}
+  // =============================
+  // DOCUMENTS
+  // =============================
+  async function loadDocuments() {
+    const res = await fetch("/documents");
+    const data = await res.json();
 
-// =============================
-// REFRESH
-// =============================
-async function refreshAll() {
-  await loadStats();
-  await loadDocuments();
-  await loadAudit();
-}
+    docTable.innerHTML = "";
+    data.forEach(d => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${d.name}</td>
+        <td>${d.fingerprint}</td>
+        <td>🔒 Encrypted</td>
+      `;
+      docTable.appendChild(row);
+    });
+  }
 
-// =============================
-// STATS
-// =============================
-async function loadStats() {
-  const res = await fetch("/stats");
-  const data = await res.json();
+  // =============================
+  // UPLOAD
+  // =============================
+  window.upload = async () => {
+    const res = await fetch("/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: document.getElementById("name").value,
+        text: document.getElementById("text").value,
+        user: currentUser
+      })
+    });
 
-  docs.textContent = data.documents;
-  access.textContent = data.accesses;
-  reuse.textContent = data.reuse_events;
-  logs.textContent = data.audit_logs;
-}
+    const data = await res.json();
+    uploadResult.textContent = `Stored\nFingerprint:\n${data.fingerprint}`;
+    refreshAll();
+  };
 
-// =============================
-// DOCUMENTS
-// =============================
-async function loadDocuments() {
-  const res = await fetch("/documents");
-  const data = await res.json();
+  // =============================
+  // ACCESS
+  // =============================
+  window.recordAccess = async () => {
+    const res = await fetch("/access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: document.getElementById("accessName").value,
+        user: currentUser
+      })
+    });
 
-  docTable.innerHTML = "";
-  data.forEach(d => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${d.name}</td>
-      <td>${d.fingerprint}</td>
-      <td>🔒 Encrypted</td>
-    `;
-    docTable.appendChild(row);
-  });
-}
+    accessResult.textContent = JSON.stringify(await res.json(), null, 2);
+    refreshAll();
+  };
 
-// =============================
-// UPLOAD
-// =============================
-async function upload() {
-  const res = await fetch("/upload", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: document.getElementById("name").value,
-      text: document.getElementById("text").value,
-      user: currentUser
-    })
-  });
+  // =============================
+  // REUSE
+  // =============================
+  window.reuse = async () => {
+    const res = await fetch("/reuse_check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: document.getElementById("reuseText").value,
+        user: currentUser
+      })
+    });
 
-  const data = await res.json();
-  uploadResult.textContent = "Stored successfully";
-  refreshAll();
-}
+    const data = await res.json();
+    reuseResult.textContent =
+      data.matches.length === 0
+        ? "No semantic reuse detected."
+        : JSON.stringify(data.matches, null, 2);
 
-// =============================
-// ACCESS
-// =============================
-async function recordAccess() {
-  const res = await fetch("/access", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: document.getElementById("accessName").value,
-      user: currentUser
-    })
-  });
+    refreshAll();
+  };
 
-  accessResult.textContent = JSON.stringify(await res.json(), null, 2);
-  refreshAll();
-}
+  // =============================
+  // AUDIT
+  // =============================
+  async function loadAudit() {
+    const res = await fetch("/audit");
+    const data = await res.json();
 
-// =============================
-// REUSE
-// =============================
-async function reuse() {
-  const res = await fetch("/reuse_check", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: document.getElementById("reuseText").value,
-      user: currentUser
-    })
-  });
-
-  const data = await res.json();
-  reuseResult.textContent =
-    data.matches.length === 0
-      ? "No semantic reuse detected."
-      : JSON.stringify(data.matches, null, 2);
-
-  refreshAll();
-}
-
-// =============================
-// AUDIT
-// =============================
-async function loadAudit() {
-  const res = await fetch("/audit");
-  const data = await res.json();
-
-  auditTable.innerHTML = "";
-  data.forEach(t => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${t.action}</td>
-      <td>${t.document}</td>
-      <td>${t.user || "-"}</td>
-      <td>${t.verified ? "✔" : "❌"}</td>
-    `;
-    auditTable.appendChild(row);
-  });
-}
+    auditTable.innerHTML = "";
+    data.forEach(t => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${t.action}</td>
+        <td>${t.document}</td>
+        <td>${t.user || "-"}</td>
+        <td>${t.verified ? "✔" : "❌"}</td>
+      `;
+      auditTable.appendChild(row);
+    });
+  }
+};
