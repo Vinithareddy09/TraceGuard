@@ -1,7 +1,7 @@
 // --------------------------------------------------
-// GLOBAL AUTH STATE
+// GLOBAL STATE
 // --------------------------------------------------
-let CURRENT_USER = null;
+let currentUser = null;
 
 // --------------------------------------------------
 // ELEMENT REFERENCES
@@ -12,7 +12,7 @@ const dashboardScreen = document.getElementById("dashboardScreen");
 const loginEmail = document.getElementById("loginEmail");
 const loginPassword = document.getElementById("loginPassword");
 const loginResult = document.getElementById("loginResult");
-const currentUserLabel = document.getElementById("currentUser");
+const currentUserSpan = document.getElementById("currentUser");
 
 const nameInput = document.getElementById("name");
 const textInput = document.getElementById("text");
@@ -24,7 +24,7 @@ const reuseResult = document.getElementById("reuseResult");
 const accessResult = document.getElementById("accessResult");
 
 const docs = document.getElementById("docs");
-const access = document.getElementById("access");
+const accessMetric = document.getElementById("access");
 const reuseMetric = document.getElementById("reuse");
 const logs = document.getElementById("logs");
 
@@ -32,8 +32,27 @@ const auditTable = document.getElementById("auditTable");
 const docTable = document.getElementById("docTable");
 
 // --------------------------------------------------
-// AUTHENTICATION
+// AUTH
 // --------------------------------------------------
+function register() {
+  fetch("/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: loginEmail.value,
+      password: loginPassword.value
+    })
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        loginResult.textContent = d.error;
+      } else {
+        loginResult.textContent = "Registered successfully. Please login.";
+      }
+    });
+}
+
 function login() {
   fetch("/login", {
     method: "POST",
@@ -50,8 +69,8 @@ function login() {
         return;
       }
 
-      CURRENT_USER = d.user;
-      currentUserLabel.textContent = CURRENT_USER;
+      currentUser = d.user;
+      currentUserSpan.textContent = currentUser;
 
       loginScreen.style.display = "none";
       dashboardScreen.style.display = "block";
@@ -60,84 +79,69 @@ function login() {
     });
 }
 
-function register() {
-  fetch("/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      email: loginEmail.value,
-      password: loginPassword.value
-    })
-  })
-    .then(r => r.json())
-    .then(d => {
-      loginResult.textContent = d.error || "Registered successfully. You can login.";
-    });
-}
-
 function logout() {
-  CURRENT_USER = null;
-  loginScreen.style.display = "block";
-  dashboardScreen.style.display = "none";
+  fetch("/logout", { method: "POST" })
+    .then(() => location.reload());
 }
 
 // --------------------------------------------------
-// UPLOAD DOCUMENT
+// UPLOAD
 // --------------------------------------------------
 function upload() {
-  if (!CURRENT_USER) return alert("Please login first");
-
   fetch("/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       name: nameInput.value,
-      text: textInput.value,
-      user: CURRENT_USER
+      text: textInput.value
     })
   })
     .then(r => r.json())
     .then(d => {
+      if (d.error) {
+        uploadResult.textContent = d.error;
+        return;
+      }
+
       uploadResult.textContent =
-        "Encrypted & stored\n\nFingerprint:\n" + d.fingerprint;
+        "Encrypted & stored successfully\nFingerprint:\n" + d.fingerprint;
+
       loadAll();
     });
 }
 
 // --------------------------------------------------
-// ACCESS DOCUMENT
+// ACCESS
 // --------------------------------------------------
 function recordAccess() {
-  if (!CURRENT_USER) return alert("Please login first");
-
   fetch("/access", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: accessNameInput.value,
-      user: CURRENT_USER
+      name: accessNameInput.value
     })
   })
     .then(r => r.json())
-    .then(() => {
-      accessResult.textContent =
-        "Access recorded for user: " + CURRENT_USER;
+    .then(d => {
+      if (d.error) {
+        accessResult.textContent = d.error;
+        return;
+      }
+
+      accessResult.textContent = "Access recorded successfully.";
       loadAll();
     });
 }
 
 // --------------------------------------------------
-// SEMANTIC REUSE CHECK
+// REUSE DETECTION
 // --------------------------------------------------
 function reuse() {
-  if (!CURRENT_USER) return alert("Please login first");
-
   fetch("/reuse_check", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      text: reuseTextInput.value,
-      user: CURRENT_USER
+      text: reuseTextInput.value
     })
   })
     .then(r => r.json())
@@ -158,11 +162,21 @@ function reuse() {
 }
 
 // --------------------------------------------------
-// LOAD DOCUMENT VAULT
+// DATA LOADERS
 // --------------------------------------------------
+function loadStats() {
+  fetch("/stats")
+    .then(r => r.json())
+    .then(d => {
+      docs.textContent = d.documents;
+      accessMetric.textContent = d.accesses;
+      reuseMetric.textContent = d.reuse_events;
+      logs.textContent = d.audit_logs;
+    });
+}
+
 function loadDocuments() {
   docTable.innerHTML = "";
-
   fetch("/documents")
     .then(r => r.json())
     .then(data => {
@@ -172,32 +186,13 @@ function loadDocuments() {
             <td>${d.name}</td>
             <td>${d.fingerprint}</td>
             <td>🔒 Encrypted</td>
-          </tr>
-        `;
+          </tr>`;
       });
     });
 }
 
-// --------------------------------------------------
-// STATS
-// --------------------------------------------------
-function loadStats() {
-  fetch("/stats")
-    .then(r => r.json())
-    .then(d => {
-      docs.textContent = d.documents;
-      access.textContent = d.accesses;
-      reuseMetric.textContent = d.reuse_events;
-      logs.textContent = d.audit_logs;
-    });
-}
-
-// --------------------------------------------------
-// AUDIT LOG
-// --------------------------------------------------
 function loadAudit() {
   auditTable.innerHTML = "";
-
   fetch("/audit")
     .then(r => r.json())
     .then(data => {
@@ -206,17 +201,13 @@ function loadAudit() {
           <tr>
             <td>${l.action}</td>
             <td>${l.document}</td>
-            <td>${l.user || "-"}</td>
+            <td>${l.user}</td>
             <td>${l.verified ? "✔" : "❌"}</td>
-          </tr>
-        `;
+          </tr>`;
       });
     });
 }
 
-// --------------------------------------------------
-// LOAD EVERYTHING
-// --------------------------------------------------
 function loadAll() {
   loadStats();
   loadDocuments();
