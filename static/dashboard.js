@@ -6,6 +6,9 @@ const reuseTextInput = document.getElementById("reuseText");
 const uploadResult = document.getElementById("uploadResult");
 const reuseResult = document.getElementById("reuseResult");
 
+const accessNameInput = document.getElementById("accessName");
+const accessResult = document.getElementById("accessResult");
+
 const docs = document.getElementById("docs");
 const access = document.getElementById("access");
 const reuseMetric = document.getElementById("reuse");
@@ -37,7 +40,28 @@ function upload() {
   });
 }
 
-// -------- REUSE CHECK (FIXED) --------
+// -------- ACCESS (NEW) --------
+function recordAccess() {
+  fetch("/access", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: accessNameInput.value
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    accessResult.textContent = "Access recorded successfully.";
+    loadStats();
+    loadAudit();
+  })
+  .catch(err => {
+    console.error(err);
+    alert("Access failed");
+  });
+}
+
+// -------- REUSE CHECK --------
 function reuse() {
   fetch("/reuse_check", {
     method: "POST",

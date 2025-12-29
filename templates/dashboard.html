@@ -16,6 +16,7 @@
   <nav>
     <a href="#dashboard">Dashboard</a>
     <a href="#upload">Upload</a>
+    <a href="#accessSection">Access</a>
     <a href="#reuse">Reuse Detection</a>
     <a href="#audit">Audit Trail</a>
   </nav>
@@ -60,6 +61,16 @@
 
     <button onclick="upload()">Encrypt & Store</button>
     <pre id="uploadResult"></pre>
+  </section>
+
+  <!-- ACCESS (NEW) -->
+  <section class="card" id="accessSection">
+    <h2>Record Document Access</h2>
+
+    <input id="accessName" placeholder="Document name to access">
+    <button onclick="recordAccess()">Record Access</button>
+
+    <pre id="accessResult"></pre>
   </section>
 
   <!-- REUSE -->
