@@ -1,64 +1,68 @@
-function showMessage(res) {
-  if (res.status) {
-    alert(res.status + (res.fingerprint ? "\nFingerprint: " + res.fingerprint : ""));
-  } else if (res.error) {
-    alert("Error: " + res.error);
-  } else if (res.reused_in) {
-    alert("Reused in documents:\n" + res.reused_in.join(", "));
-  } else {
-    alert(JSON.stringify(res, null, 2));
-  }
+function notify(msg) {
+  alert(msg);
 }
 
-function upload(){
+function upload() {
   fetch("/upload", {
-    method:"POST",
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      name:document.getElementById("name").value,
-      text:document.getElementById("text").value
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      name: document.getElementById("name").value,
+      text: document.getElementById("text").value
     })
   })
-  .then(r=>r.json())
-  .then(showMessage);
+  .then(r => r.json())
+  .then(res => {
+    notify(`Uploaded successfully\nFingerprint:\n${res.fingerprint}`);
+  });
 }
 
-function accessDoc(){
-  fetch("/access",{
-    method:"POST",
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      name:document.getElementById("doc").value
+function accessDoc() {
+  fetch("/access", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      name: document.getElementById("doc").value
     })
   })
-  .then(r=>r.json())
-  .then(showMessage);
+  .then(r => r.json())
+  .then(res => {
+    notify(res.status);
+  });
 }
 
-function reuse(){
-  fetch("/reuse_check",{
-    method:"POST",
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      text:document.getElementById("reuseText").value
+function reuse() {
+  fetch("/reuse_check", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      text: document.getElementById("reuseText").value
     })
   })
-  .then(r=>r.json())
-  .then(showMessage);
+  .then(r => r.json())
+  .then(res => {
+    if (res.reused_in.length === 0)
+      notify("No reuse detected");
+    else
+      notify("Reused in:\n" + res.reused_in.join(", "));
+  });
 }
 
 fetch("/audit")
-  .then(r=>r.json())
-  .then(data=>{
-    const t=document.getElementById("logs");
-    if(!t) return;
-    t.innerHTML="";
-    data.forEach(l=>{
-      t.innerHTML+=`
+  .then(r => r.json())
+  .then(data => {
+    const table = document.getElementById("logs");
+    if (!table) return;
+
+    table.innerHTML = "";
+    data.forEach(l => {
+      table.innerHTML += `
         <tr>
           <td>${l.action}</td>
           <td>${l.document}</td>
-          <td>${l.verified ? "✔ Verified" : "❌ Invalid"}</td>
+          <td class="${l.verified ? "badge-ok" : "badge-bad"}">
+            ${l.verified ? "✔ Verified" : "❌ Invalid"}
+          </td>
         </tr>`;
     });
-});
+  });

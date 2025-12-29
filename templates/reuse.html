@@ -1,15 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>TraceGuard | Reuse</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <title>Reuse Detection</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="bg-light">
-<div class="container mt-5">
-  <h3>Reuse Check</h3>
-  <textarea id="reuseText" class="form-control mb-2"></textarea>
-  <button class="btn btn-danger" onclick="reuse()">Check</button>
+<body>
+
+<header>Reuse Detection</header>
+
+<div class="container">
+  <div class="card">
+    <h2>Check Reuse</h2>
+    <textarea id="reuseText" rows="6" placeholder="Paste text to check"></textarea>
+    <button onclick="reuse()">Check</button>
+  </div>
 </div>
+
 <script src="/static/app.js"></script>
 </body>
 </html>

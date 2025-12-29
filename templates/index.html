@@ -1,16 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>TraceGuard | Upload</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <title>TraceGuard Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="bg-light">
-<div class="container mt-5">
-  <h3>Upload Document</h3>
-  <input id="name" class="form-control mb-2" placeholder="Document name">
-  <textarea id="text" class="form-control mb-2" placeholder="Document text"></textarea>
-  <button class="btn btn-primary" onclick="upload()">Upload</button>
+<body>
+
+<header>TraceGuard – Secure Document Intelligence</header>
+
+<div class="container">
+  <div class="grid">
+    <div class="card">
+      <h2>Upload Document</h2>
+      <input id="name" placeholder="Document name">
+      <textarea id="text" rows="5" placeholder="Document content"></textarea>
+      <button onclick="upload()">Upload</button>
+    </div>
+
+    <div class="card">
+      <h2>Navigate</h2>
+      <p><a href="/access_ui">Access Tracking</a></p>
+      <p><a href="/reuse_ui">Reuse Detection</a></p>
+      <p><a href="/audit_ui">Audit Log</a></p>
+    </div>
+  </div>
 </div>
+
 <script src="/static/app.js"></script>
 </body>
 </html>
