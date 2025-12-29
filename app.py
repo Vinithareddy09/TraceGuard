@@ -41,22 +41,37 @@ def init_db():
 
 init_db()
 
-# ---------- UI ROUTES ----------
+# ---------- UI ----------
 @app.route("/")
-def index():
-    return render_template("index.html")
+def dashboard():
+    return render_template("dashboard.html")
 
-@app.route("/access_ui")
-def access_ui():
-    return render_template("access.html")
+# ---------- STATS (NEW) ----------
+@app.route("/stats")
+def stats():
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
 
-@app.route("/reuse_ui")
-def reuse_ui():
-    return render_template("reuse.html")
+    c.execute("SELECT COUNT(*) FROM documents")
+    docs = c.fetchone()[0]
 
-@app.route("/audit_ui")
-def audit_ui():
-    return render_template("audit.html")
+    c.execute("SELECT COUNT(*) FROM traces WHERE action='ACCESS'")
+    accesses = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM traces WHERE action='REUSE_DETECTED'")
+    reuse = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM traces")
+    logs = c.fetchone()[0]
+
+    conn.close()
+
+    return jsonify({
+        "documents": docs,
+        "accesses": accesses,
+        "reuse_events": reuse,
+        "audit_logs": logs
+    })
 
 # ---------- UPLOAD ----------
 @app.route("/upload", methods=["POST"])
@@ -70,10 +85,7 @@ def upload():
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute(
-        "INSERT INTO documents VALUES (?,?,?)",
-        (name, enc, fp)
-    )
+    c.execute("INSERT INTO documents VALUES (?,?,?)", (name, enc, fp))
     conn.commit()
     conn.close()
 
@@ -91,21 +103,18 @@ def access():
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute(
-        "SELECT fingerprint FROM documents WHERE name=?",
-        (name,)
-    )
+    c.execute("SELECT fingerprint FROM documents WHERE name=?", (name,))
     row = c.fetchone()
     conn.close()
 
     if not row:
-        return jsonify({"error": "Not found"}), 404
+        return jsonify({"error": "Document not found"}), 404
 
     save_trace(create_trace("ACCESS", name, row[0]))
 
     return jsonify({"status": "Access recorded"})
 
-# ---------- REUSE CHECK (SEMANTIC, TF-IDF) ----------
+# ---------- SEMANTIC REUSE (UPGRADED) ----------
 @app.route("/reuse_check", methods=["POST"])
 def reuse():
     text = request.json["text"]
@@ -116,25 +125,24 @@ def reuse():
     rows = c.fetchall()
     conn.close()
 
-    reused = []
+    results = []
 
     for name, enc_content in rows:
-        original_text = decrypt_text(enc_content)
-        similarity = semantic_similarity(text, original_text)
+        original = decrypt_text(enc_content)
+        score = semantic_similarity(text, original)
 
-        if similarity >= 0.75:   # semantic threshold
-            reused.append(name)
+        if score >= 0.6:
+            results.append({
+                "document": name,
+                "similarity": round(score * 100, 2)
+            })
             save_trace(
-                create_trace(
-                    "REUSE_DETECTED",
-                    name,
-                    fingerprint(text)
-                )
+                create_trace("REUSE_DETECTED", name, fingerprint(text))
             )
 
     return jsonify({
-        "reused_in": reused,
-        "similarity_method": "TF-IDF semantic similarity"
+        "method": "TF-IDF Semantic Similarity",
+        "matches": results
     })
 
 # ---------- AUDIT ----------
@@ -142,7 +150,7 @@ def reuse():
 def audit():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("SELECT * FROM traces")
+    c.execute("SELECT * FROM traces ORDER BY timestamp DESC")
     rows = c.fetchall()
     conn.close()
 
@@ -160,7 +168,7 @@ def audit():
 
     return jsonify(logs)
 
-# ---------- TRACE STORAGE ----------
+# ---------- TRACE SAVE ----------
 def save_trace(trace):
     conn = sqlite3.connect(DB)
     c = conn.cursor()
