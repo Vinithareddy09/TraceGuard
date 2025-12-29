@@ -1,0 +1,4 @@
+flask
+cryptography
+sentence-transformers
+numpy
