@@ -8,7 +8,6 @@
 
 <body>
 
-<!-- SIDEBAR -->
 <aside class="sidebar">
   <h2>TraceGuard</h2>
   <p class="subtitle">Verifiable Semantic Intelligence</p>
@@ -22,7 +21,6 @@
   </nav>
 </aside>
 
-<!-- MAIN CONTENT -->
 <main class="content" id="dashboard">
 
   <header>
@@ -34,64 +32,62 @@
 
   <!-- METRICS -->
   <section class="metrics">
-    <div class="metric">
-      <span id="docs">0</span>
-      <label>Documents</label>
-    </div>
-    <div class="metric">
-      <span id="access">0</span>
-      <label>Access Events</label>
-    </div>
-    <div class="metric">
-      <span id="reuse">0</span>
-      <label>Reuse Alerts</label>
-    </div>
-    <div class="metric">
-      <span id="logs">0</span>
-      <label>Audit Logs</label>
-    </div>
+    <div class="metric"><span id="docs">0</span><label>Documents</label></div>
+    <div class="metric"><span id="access">0</span><label>Access Events</label></div>
+    <div class="metric"><span id="reuse">0</span><label>Reuse Alerts</label></div>
+    <div class="metric"><span id="logs">0</span><label>Audit Logs</label></div>
+  </section>
+
+  <!-- DOCUMENT VAULT -->
+  <section class="card">
+    <h2>Encrypted Document Vault</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Document Name</th>
+          <th>Fingerprint</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="docTable"></tbody>
+    </table>
   </section>
 
   <!-- UPLOAD -->
   <section class="card" id="upload">
     <h2>Upload Protected Document</h2>
-
-    <input id="name" placeholder="Document name (e.g. Exam_Policy_2025)">
-    <textarea id="text" placeholder="Paste confidential document content"></textarea>
-
+    <input id="name" placeholder="Document name">
+    <textarea id="text" placeholder="Confidential content"></textarea>
     <button onclick="upload()">Encrypt & Store</button>
     <pre id="uploadResult"></pre>
   </section>
 
-  <!-- ACCESS (NEW) -->
+  <!-- ACCESS -->
   <section class="card" id="accessSection">
     <h2>Record Document Access</h2>
-
-    <input id="accessName" placeholder="Document name to access">
+    <input id="userId" placeholder="User ID (email / roll no)">
+    <input id="accessName" placeholder="Document name">
     <button onclick="recordAccess()">Record Access</button>
-
     <pre id="accessResult"></pre>
   </section>
 
   <!-- REUSE -->
   <section class="card" id="reuse">
     <h2>Semantic Reuse Detection</h2>
-
-    <textarea id="reuseText" placeholder="Paste text to analyze semantic similarity"></textarea>
+    <textarea id="reuseText" placeholder="Paste text to check for reuse"></textarea>
     <button onclick="reuse()">Analyze Similarity</button>
-
     <pre id="reuseResult"></pre>
   </section>
 
   <!-- AUDIT -->
   <section class="card" id="audit">
     <h2>Audit Trail (Verifiable)</h2>
-
     <table>
       <thead>
         <tr>
           <th>Action</th>
           <th>Document</th>
+          <th>User</th>
           <th>Verified</th>
         </tr>
       </thead>

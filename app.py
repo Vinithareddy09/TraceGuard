@@ -2,7 +2,12 @@ from flask import Flask, render_template, request, jsonify
 import sqlite3
 import os
 
-from crypto_utils import encrypt_text, decrypt_text, fingerprint, semantic_similarity
+from crypto_utils import (
+    encrypt_text,
+    decrypt_text,
+    fingerprint,
+    semantic_similarity
+)
 from trace_utils import create_trace, verify_trace
 
 app = Flask(__name__)
@@ -13,19 +18,22 @@ def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
+    # Documents table
     c.execute("""
     CREATE TABLE IF NOT EXISTS documents(
-        name TEXT,
+        name TEXT PRIMARY KEY,
         content BLOB,
         fingerprint TEXT
     )
     """)
 
+    # Traces table (with user identity)
     c.execute("""
     CREATE TABLE IF NOT EXISTS traces(
         action TEXT,
         document TEXT,
         fingerprint TEXT,
+        user TEXT,
         timestamp REAL,
         proof TEXT
     )
@@ -54,7 +62,7 @@ def stats():
     accesses = c.fetchone()[0]
 
     c.execute("SELECT COUNT(*) FROM traces WHERE action='REUSE_DETECTED'")
-    reuse = c.fetchone()[0]
+    reuse_events = c.fetchone()[0]
 
     c.execute("SELECT COUNT(*) FROM traces")
     logs = c.fetchone()[0]
@@ -64,9 +72,25 @@ def stats():
     return jsonify({
         "documents": docs,
         "accesses": accesses,
-        "reuse_events": reuse,
+        "reuse_events": reuse_events,
         "audit_logs": logs
     })
+
+# ---------- DOCUMENT VAULT ----------
+@app.route("/documents")
+def list_documents():
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("SELECT name, fingerprint FROM documents")
+    rows = c.fetchall()
+    conn.close()
+
+    return jsonify([
+        {
+            "name": r[0],
+            "fingerprint": r[1][:12] + "..."
+        } for r in rows
+    ])
 
 # ---------- UPLOAD ----------
 @app.route("/upload", methods=["POST"])
@@ -80,18 +104,25 @@ def upload():
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("INSERT INTO documents VALUES (?,?,?)", (name, enc, fp))
+    c.execute(
+        "INSERT OR REPLACE INTO documents VALUES (?,?,?)",
+        (name, enc, fp)
+    )
     conn.commit()
     conn.close()
 
-    save_trace(create_trace("UPLOAD", name, fp))
+    save_trace(create_trace("UPLOAD", name, fp, None))
 
-    return jsonify({"status": "stored", "fingerprint": fp})
+    return jsonify({
+        "status": "stored",
+        "fingerprint": fp
+    })
 
 # ---------- ACCESS ----------
 @app.route("/access", methods=["POST"])
 def access():
     name = request.json["name"]
+    user = request.json.get("user")
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -102,12 +133,13 @@ def access():
     if not row:
         return jsonify({"error": "Document not found"}), 404
 
-    save_trace(create_trace("ACCESS", name, row[0]))
+    save_trace(create_trace("ACCESS", name, row[0], user))
+
     return jsonify({"status": "access recorded"})
 
 # ---------- SEMANTIC REUSE ----------
 @app.route("/reuse_check", methods=["POST"])
-def reuse():
+def reuse_check():
     text = request.json["text"]
 
     conn = sqlite3.connect(DB)
@@ -119,15 +151,22 @@ def reuse():
     matches = []
 
     for name, enc in rows:
-        original = decrypt_text(enc)
-        score = semantic_similarity(text, original)
+        original_text = decrypt_text(enc)
+        score = semantic_similarity(text, original_text)
 
         if score >= 0.6:
             matches.append({
                 "document": name,
                 "similarity": round(score * 100, 2)
             })
-            save_trace(create_trace("REUSE_DETECTED", name, fingerprint(text)))
+            save_trace(
+                create_trace(
+                    "REUSE_DETECTED",
+                    name,
+                    fingerprint(text),
+                    None
+                )
+            )
 
     return jsonify({
         "method": "TF-IDF Semantic Similarity",
@@ -149,8 +188,9 @@ def audit():
             "action": r[0],
             "document": r[1],
             "fingerprint": r[2],
-            "timestamp": r[3],
-            "proof": r[4]
+            "user": r[3],
+            "timestamp": r[4],
+            "proof": r[5]
         }
         trace["verified"] = verify_trace(trace)
         logs.append(trace)
@@ -162,11 +202,12 @@ def save_trace(trace):
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO traces VALUES (?,?,?,?,?)",
+        "INSERT INTO traces VALUES (?,?,?,?,?,?)",
         (
             trace["action"],
             trace["document"],
             trace["fingerprint"],
+            trace["user"],
             trace["timestamp"],
             trace["proof"]
         )
