@@ -1,88 +1,90 @@
-// ---------- ELEMENTS ----------
+// -------- ELEMENT REFERENCES --------
 const nameInput = document.getElementById("name");
 const textInput = document.getElementById("text");
-const reuseInput = document.getElementById("reuseText");
+const reuseTextInput = document.getElementById("reuseText");
 const reuseResult = document.getElementById("reuseResult");
 
-const docsEl = document.getElementById("docs");
-const accessEl = document.getElementById("access");
-const reuseEl = document.getElementById("reuseCount");
-const logsEl = document.getElementById("logs");
+const docs = document.getElementById("docs");
+const access = document.getElementById("access");
+const reuse = document.getElementById("reuse");
+const logs = document.getElementById("logs");
 const auditTable = document.getElementById("auditTable");
 
-// ---------- UPLOAD ----------
-async function upload() {
-  if (!nameInput.value || !textInput.value) {
-    alert("Please enter document name and content");
-    return;
-  }
-
-  const res = await fetch("/upload", {
+// -------- UPLOAD --------
+function upload() {
+  fetch("/upload", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       name: nameInput.value,
       text: textInput.value
     })
-  });
+  })
+  .then(r => r.json())
+  .then(d => {
+    // Alert (optional but fine for demo)
+    alert("Document encrypted & stored.\nFingerprint:\n" + d.fingerprint);
 
-  const d = await res.json();
-  alert("Document secured.\nFingerprint:\n" + d.fingerprint);
-  loadStats();
-  loadAudit();
+    // ✅ Visible confirmation in UI
+    document.getElementById("uploadResult").textContent =
+      "Fingerprint:\n" + d.fingerprint;
+
+    // Refresh dashboard data
+    loadStats();
+    loadAudit();
+  })
+  .catch(err => {
+    console.error(err);
+    alert("Upload failed");
+  });
 }
 
-// ---------- REUSE CHECK ----------
-async function checkReuse() {
-  if (!reuseInput.value) {
-    alert("Paste text to analyze");
-    return;
-  }
 
-  const res = await fetch("/reuse_check", {
+// -------- REUSE CHECK --------
+function reuseCheck() {
+  fetch("/reuse_check", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ text: reuseInput.value })
-  });
-
-  const d = await res.json();
-  reuseResult.textContent =
-    d.reused_in.length === 0
-      ? "No semantic reuse detected."
-      : "Reuse detected in:\n- " + d.reused_in.join("\n- ");
-
-  loadStats();
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: reuseTextInput.value })
+  })
+    .then(r => r.json())
+    .then(d => {
+      reuseResult.textContent = JSON.stringify(d, null, 2);
+      loadStats();
+      loadAudit();
+    })
+    .catch(err => alert("Reuse check failed"));
 }
 
-// ---------- DASHBOARD STATS ----------
-async function loadStats() {
-  const res = await fetch("/stats");
-  const d = await res.json();
-
-  docsEl.textContent = d.documents;
-  accessEl.textContent = d.access_events;
-  reuseEl.textContent = d.reuse_events;
-  logsEl.textContent = d.audit_logs;
+// -------- STATS --------
+function loadStats() {
+  fetch("/stats")
+    .then(r => r.json())
+    .then(d => {
+      docs.textContent = d.documents;
+      access.textContent = d.accesses;
+      reuse.textContent = d.reuse_events;
+      logs.textContent = d.audit_logs;
+    });
 }
 
-// ---------- AUDIT LOG ----------
-async function loadAudit() {
+// -------- AUDIT --------
+function loadAudit() {
   auditTable.innerHTML = "";
-
-  const res = await fetch("/audit");
-  const data = await res.json();
-
-  data.forEach(l => {
-    auditTable.innerHTML += `
-      <tr>
-        <td>${l.action}</td>
-        <td>${l.document}</td>
-        <td>${l.verified ? "✔" : "❌"}</td>
-      </tr>`;
-  });
+  fetch("/audit")
+    .then(r => r.json())
+    .then(data => {
+      data.forEach(l => {
+        auditTable.innerHTML += `
+          <tr>
+            <td>${l.action}</td>
+            <td>${l.document}</td>
+            <td>${l.verified ? "✔" : "❌"}</td>
+          </tr>`;
+      });
+    });
 }
 
-window.onload = () => {
-  loadStats();
-  loadAudit();
-};
+// -------- INIT --------
+loadStats();
+loadAudit();
