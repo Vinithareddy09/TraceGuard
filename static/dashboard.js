@@ -2,12 +2,15 @@
 const nameInput = document.getElementById("name");
 const textInput = document.getElementById("text");
 const reuseTextInput = document.getElementById("reuseText");
+
+const uploadResult = document.getElementById("uploadResult");
 const reuseResult = document.getElementById("reuseResult");
 
 const docs = document.getElementById("docs");
 const access = document.getElementById("access");
-const reuse = document.getElementById("reuse");
+const reuseMetric = document.getElementById("reuse");
 const logs = document.getElementById("logs");
+
 const auditTable = document.getElementById("auditTable");
 
 // -------- UPLOAD --------
@@ -22,14 +25,9 @@ function upload() {
   })
   .then(r => r.json())
   .then(d => {
-    // Alert (optional but fine for demo)
-    alert("Document encrypted & stored.\nFingerprint:\n" + d.fingerprint);
+    uploadResult.textContent =
+      "Document encrypted and stored.\n\nFingerprint:\n" + d.fingerprint;
 
-    // ✅ Visible confirmation in UI
-    document.getElementById("uploadResult").textContent =
-      "Fingerprint:\n" + d.fingerprint;
-
-    // Refresh dashboard data
     loadStats();
     loadAudit();
   })
@@ -39,21 +37,25 @@ function upload() {
   });
 }
 
-
-// -------- REUSE CHECK --------
-function reuseCheck() {
+// -------- REUSE CHECK (FIXED) --------
+function reuse() {
   fetch("/reuse_check", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: reuseTextInput.value })
-  })
-    .then(r => r.json())
-    .then(d => {
-      reuseResult.textContent = JSON.stringify(d, null, 2);
-      loadStats();
-      loadAudit();
+    body: JSON.stringify({
+      text: reuseTextInput.value
     })
-    .catch(err => alert("Reuse check failed"));
+  })
+  .then(r => r.json())
+  .then(d => {
+    reuseResult.textContent = JSON.stringify(d, null, 2);
+    loadStats();
+    loadAudit();
+  })
+  .catch(err => {
+    console.error(err);
+    alert("Reuse check failed");
+  });
 }
 
 // -------- STATS --------
@@ -63,7 +65,7 @@ function loadStats() {
     .then(d => {
       docs.textContent = d.documents;
       access.textContent = d.accesses;
-      reuse.textContent = d.reuse_events;
+      reuseMetric.textContent = d.reuse_events;
       logs.textContent = d.audit_logs;
     });
 }
@@ -71,6 +73,7 @@ function loadStats() {
 // -------- AUDIT --------
 function loadAudit() {
   auditTable.innerHTML = "";
+
   fetch("/audit")
     .then(r => r.json())
     .then(data => {
@@ -80,7 +83,8 @@ function loadAudit() {
             <td>${l.action}</td>
             <td>${l.document}</td>
             <td>${l.verified ? "✔" : "❌"}</td>
-          </tr>`;
+          </tr>
+        `;
       });
     });
 }
