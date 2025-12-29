@@ -4,13 +4,13 @@ import json
 
 def create_trace(action, document, fingerprint, user=None):
     """
-    Creates a tamper-proof audit trace.
+    Creates a cryptographically verifiable audit trace.
 
-    This trace proves:
-    - WHAT happened (action)
-    - WHICH document
-    - WHICH user (identity)
-    - WHEN it happened
+    This proves:
+    - WHAT happened        (action)
+    - WHICH document       (document)
+    - WHICH user           (user identity)
+    - WHEN it happened     (timestamp)
     """
 
     trace_data = {
@@ -21,8 +21,12 @@ def create_trace(action, document, fingerprint, user=None):
         "timestamp": round(time.time(), 3)
     }
 
-    # Canonical serialization (important for verification)
-    serialized = json.dumps(trace_data, sort_keys=True)
+    # Canonical serialization (order + format fixed)
+    serialized = json.dumps(
+        trace_data,
+        sort_keys=True,
+        separators=(",", ":")
+    )
 
     # Cryptographic integrity proof
     proof = hashlib.sha256(serialized.encode()).hexdigest()
@@ -35,7 +39,7 @@ def verify_trace(trace):
     """
     Verifies if a trace has been tampered with.
 
-    If ANY field changes (user, time, document, etc),
+    If ANY field is modified (user, time, doc, etc),
     verification will FAIL.
     """
 
@@ -46,7 +50,12 @@ def verify_trace(trace):
     temp = trace.copy()
     temp.pop("proof")
 
-    serialized = json.dumps(temp, sort_keys=True)
+    serialized = json.dumps(
+        temp,
+        sort_keys=True,
+        separators=(",", ":")
+    )
+
     recalculated = hashlib.sha256(serialized.encode()).hexdigest()
 
     return recalculated == proof

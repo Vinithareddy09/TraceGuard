@@ -16,7 +16,6 @@ def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
-    # USERS TABLE (AUTHENTICATION)
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         email TEXT PRIMARY KEY,
@@ -24,7 +23,6 @@ def init_db():
     )
     """)
 
-    # DOCUMENTS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS documents(
         name TEXT PRIMARY KEY,
@@ -33,7 +31,6 @@ def init_db():
     )
     """)
 
-    # AUDIT TRACES TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS traces(
         action TEXT,
@@ -51,14 +48,10 @@ def init_db():
 init_db()
 
 # --------------------------------------------------
-# UTILS
+# HELPERS
 # --------------------------------------------------
 def hash_password(password: str) -> str:
-    """
-    Hashes password before storage.
-    """
     return hashlib.sha256(password.encode()).hexdigest()
-
 
 # --------------------------------------------------
 # UI
@@ -67,42 +60,42 @@ def hash_password(password: str) -> str:
 def dashboard():
     return render_template("dashboard.html")
 
-
 # --------------------------------------------------
-# AUTHENTICATION
+# AUTH
 # --------------------------------------------------
 @app.route("/register", methods=["POST"])
 def register():
     data = request.json
-    email = data["email"]
-    password = data["password"]
+    email = data.get("email")
+    password = data.get("password")
 
-    pw_hash = hash_password(password)
+    if not email or not password:
+        return jsonify({"error": "Missing credentials"}), 400
 
     try:
         conn = sqlite3.connect(DB)
         c = conn.cursor()
-        c.execute("INSERT INTO users VALUES (?,?)", (email, pw_hash))
+        c.execute(
+            "INSERT INTO users VALUES (?,?)",
+            (email, hash_password(password))
+        )
         conn.commit()
         conn.close()
         return jsonify({"status": "registered"})
     except sqlite3.IntegrityError:
         return jsonify({"error": "User already exists"}), 400
 
-
 @app.route("/login", methods=["POST"])
 def login():
     data = request.json
-    email = data["email"]
-    password = data["password"]
-
-    pw_hash = hash_password(password)
+    email = data.get("email")
+    password = data.get("password")
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     c.execute(
         "SELECT * FROM users WHERE email=? AND password_hash=?",
-        (email, pw_hash)
+        (email, hash_password(password))
     )
     user = c.fetchone()
     conn.close()
@@ -111,7 +104,6 @@ def login():
         return jsonify({"error": "Invalid credentials"}), 401
 
     return jsonify({"status": "login_success", "user": email})
-
 
 # --------------------------------------------------
 # STATS
@@ -142,12 +134,11 @@ def stats():
         "audit_logs": logs
     })
 
-
 # --------------------------------------------------
 # DOCUMENT VAULT
 # --------------------------------------------------
 @app.route("/documents")
-def list_documents():
+def documents():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     c.execute("SELECT name, fingerprint FROM documents")
@@ -161,16 +152,18 @@ def list_documents():
         } for r in rows
     ])
 
-
 # --------------------------------------------------
-# UPLOAD DOCUMENT
+# UPLOAD
 # --------------------------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
     data = request.json
-    name = data["name"]
-    text = data["text"]
-    user = data.get("user")  # authenticated user
+    name = data.get("name")
+    text = data.get("text")
+    user = data.get("user")
+
+    if not all([name, text, user]):
+        return jsonify({"error": "Missing data"}), 400
 
     enc = encrypt_text(text)
     fp = fingerprint(text)
@@ -188,15 +181,17 @@ def upload():
 
     return jsonify({"status": "stored", "fingerprint": fp})
 
-
 # --------------------------------------------------
-# ACCESS DOCUMENT (LOGICAL ACCESS)
+# ACCESS
 # --------------------------------------------------
 @app.route("/access", methods=["POST"])
 def access():
     data = request.json
-    name = data["name"]
-    user = data["user"]
+    name = data.get("name")
+    user = data.get("user")
+
+    if not name or not user:
+        return jsonify({"error": "Missing data"}), 400
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -210,15 +205,17 @@ def access():
     save_trace(create_trace("ACCESS", name, row[0], user))
     return jsonify({"status": "access recorded"})
 
-
 # --------------------------------------------------
-# SEMANTIC REUSE DETECTION
+# REUSE CHECK
 # --------------------------------------------------
 @app.route("/reuse_check", methods=["POST"])
 def reuse_check():
     data = request.json
-    text = data["text"]
+    text = data.get("text")
     user = data.get("user")
+
+    if not text or not user:
+        return jsonify({"error": "Missing data"}), 400
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -251,9 +248,8 @@ def reuse_check():
         "matches": matches
     })
 
-
 # --------------------------------------------------
-# AUDIT LOG
+# AUDIT
 # --------------------------------------------------
 @app.route("/audit")
 def audit():
@@ -278,7 +274,6 @@ def audit():
 
     return jsonify(logs)
 
-
 # --------------------------------------------------
 # TRACE STORAGE
 # --------------------------------------------------
@@ -298,7 +293,6 @@ def save_trace(trace):
     )
     conn.commit()
     conn.close()
-
 
 # --------------------------------------------------
 # RUN

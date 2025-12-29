@@ -16,106 +16,108 @@
   <input id="loginEmail" placeholder="Email ID">
   <input id="loginPassword" type="password" placeholder="Password">
 
-  <button onclick="login()">Login</button>
-  <button class="secondary" onclick="register()">Register</button>
+  <button type="button" onclick="login()">Login</button>
+  <button type="button" class="secondary" onclick="register()">Register</button>
 
   <pre id="loginResult"></pre>
 </div>
 
-<!-- ================= DASHBOARD ================= -->
-<div id="dashboardScreen" style="display:none;">
+<!-- ================= DASHBOARD SCREEN ================= -->
+<div id="dashboardScreen" style="display:none; width:100%;">
 
-<aside class="sidebar">
-  <h2>TraceGuard</h2>
-  <p class="subtitle">Verifiable Semantic Intelligence</p>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <h2>TraceGuard</h2>
+    <p class="subtitle">Verifiable Semantic Intelligence</p>
 
-  <nav>
-    <a href="#dashboard">Dashboard</a>
-    <a href="#upload">Upload</a>
-    <a href="#accessSection">Access</a>
-    <a href="#reuse">Reuse</a>
-    <a href="#audit">Audit</a>
-    <a href="#" onclick="logout()">Logout</a>
-  </nav>
-</aside>
+    <nav>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#upload">Upload</a>
+      <a href="#accessSection">Access</a>
+      <a href="#reuse">Reuse</a>
+      <a href="#audit">Audit</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </nav>
+  </aside>
 
-<main class="content" id="dashboard">
+  <!-- MAIN -->
+  <main class="content" id="dashboard">
 
-  <header>
-    <h1>Secure Document Intelligence Dashboard</h1>
-    <p class="desc">
-      Encrypted storage • Verified access • Semantic reuse detection
-    </p>
-    <p class="user-info">
-      Logged in as: <strong id="currentUser"></strong>
-    </p>
-  </header>
+    <header>
+      <h1>Secure Document Intelligence Dashboard</h1>
+      <p class="desc">
+        Encrypted storage • Verified access • Semantic reuse detection
+      </p>
+      <p class="user-info">
+        Logged in as: <strong id="currentUser"></strong>
+      </p>
+    </header>
 
-  <!-- METRICS -->
-  <section class="metrics">
-    <div class="metric"><span id="docs">0</span><label>Documents</label></div>
-    <div class="metric"><span id="access">0</span><label>Access Events</label></div>
-    <div class="metric"><span id="reuse">0</span><label>Reuse Alerts</label></div>
-    <div class="metric"><span id="logs">0</span><label>Audit Logs</label></div>
-  </section>
+    <!-- METRICS -->
+    <section class="metrics">
+      <div class="metric"><span id="docs">0</span><label>Documents</label></div>
+      <div class="metric"><span id="access">0</span><label>Access Events</label></div>
+      <div class="metric"><span id="reuse">0</span><label>Reuse Alerts</label></div>
+      <div class="metric"><span id="logs">0</span><label>Audit Logs</label></div>
+    </section>
 
-  <!-- DOCUMENT VAULT -->
-  <section class="card">
-    <h2>Encrypted Document Vault</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Document</th>
-          <th>Fingerprint</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody id="docTable"></tbody>
-    </table>
-  </section>
+    <!-- DOCUMENT VAULT -->
+    <section class="card">
+      <h2>Encrypted Document Vault</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th>Fingerprint</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="docTable"></tbody>
+      </table>
+    </section>
 
-  <!-- UPLOAD -->
-  <section class="card" id="upload">
-    <h2>Upload Protected Document</h2>
-    <input id="name" placeholder="Document name">
-    <textarea id="text" placeholder="Confidential content"></textarea>
-    <button type="button" onclick="upload()">Encrypt & Store</button>
-    <pre id="uploadResult"></pre>
-  </section>
+    <!-- UPLOAD -->
+    <section class="card" id="upload">
+      <h2>Upload Protected Document</h2>
+      <input id="name" placeholder="Document name">
+      <textarea id="text" placeholder="Confidential content"></textarea>
+      <button type="button" onclick="upload()">Encrypt & Store</button>
+      <pre id="uploadResult"></pre>
+    </section>
 
-  <!-- ACCESS -->
-  <section class="card" id="accessSection">
-    <h2>Record Document Access</h2>
-    <input id="accessName" placeholder="Document name">
-    <button type="button" onclick="recordAccess()">Record Access</button>
-    <pre id="accessResult"></pre>
-  </section>
+    <!-- ACCESS -->
+    <section class="card" id="accessSection">
+      <h2>Record Document Access</h2>
+      <input id="accessName" placeholder="Document name">
+      <button type="button" onclick="recordAccess()">Record Access</button>
+      <pre id="accessResult"></pre>
+    </section>
 
-  <!-- REUSE -->
-  <section class="card" id="reuse">
-    <h2>Semantic Reuse Detection</h2>
-    <textarea id="reuseText" placeholder="Paste text to check reuse"></textarea>
-    <button type="button" onclick="reuse()">Analyze Similarity</button>
-    <pre id="reuseResult"></pre>
-  </section>
+    <!-- REUSE -->
+    <section class="card" id="reuse">
+      <h2>Semantic Reuse Detection</h2>
+      <textarea id="reuseText" placeholder="Paste text to check reuse"></textarea>
+      <button type="button" onclick="reuse()">Analyze Similarity</button>
+      <pre id="reuseResult"></pre>
+    </section>
 
-  <!-- AUDIT -->
-  <section class="card" id="audit">
-    <h2>Audit Trail (Verifiable)</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Action</th>
-          <th>Document</th>
-          <th>User</th>
-          <th>Verified</th>
-        </tr>
-      </thead>
-      <tbody id="auditTable"></tbody>
-    </table>
-  </section>
+    <!-- AUDIT -->
+    <section class="card" id="audit">
+      <h2>Audit Trail (Verifiable)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Document</th>
+            <th>User</th>
+            <th>Verified</th>
+          </tr>
+        </thead>
+        <tbody id="auditTable"></tbody>
+      </table>
+    </section>
 
-</main>
+  </main>
 </div>
 
 <script src="/static/dashboard.js"></script>
