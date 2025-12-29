@@ -1,15 +1,23 @@
 from flask import Flask, render_template, request, jsonify
 import sqlite3
+import os
 
-from crypto_utils import encrypt_text, semantic_fingerprint
+from crypto_utils import (
+    encrypt_text,
+    decrypt_text,
+    fingerprint,
+    semantic_similarity
+)
 from trace_utils import create_trace, verify_trace
 
 app = Flask(__name__)
 DB = "storage.db"
 
+# ---------- DATABASE ----------
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS documents(
         name TEXT,
@@ -17,6 +25,7 @@ def init_db():
         fingerprint TEXT
     )
     """)
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS traces(
         action TEXT,
@@ -26,11 +35,13 @@ def init_db():
         proof TEXT
     )
     """)
+
     conn.commit()
     conn.close()
 
 init_db()
 
+# ---------- UI ROUTES ----------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -47,28 +58,43 @@ def reuse_ui():
 def audit_ui():
     return render_template("audit.html")
 
+# ---------- UPLOAD ----------
 @app.route("/upload", methods=["POST"])
 def upload():
     data = request.json
-    enc = encrypt_text(data["text"])
-    fp = semantic_fingerprint(data["text"])
+    name = data["name"]
+    text = data["text"]
+
+    enc = encrypt_text(text)
+    fp = fingerprint(text)
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("INSERT INTO documents VALUES (?,?,?)",
-              (data["name"], enc, fp))
+    c.execute(
+        "INSERT INTO documents VALUES (?,?,?)",
+        (name, enc, fp)
+    )
     conn.commit()
     conn.close()
 
-    save_trace(create_trace("UPLOAD", data["name"], fp))
-    return jsonify({"status": "Uploaded", "fingerprint": fp})
+    save_trace(create_trace("UPLOAD", name, fp))
 
+    return jsonify({
+        "status": "Uploaded",
+        "fingerprint": fp
+    })
+
+# ---------- ACCESS ----------
 @app.route("/access", methods=["POST"])
 def access():
     name = request.json["name"]
+
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("SELECT fingerprint FROM documents WHERE name=?", (name,))
+    c.execute(
+        "SELECT fingerprint FROM documents WHERE name=?",
+        (name,)
+    )
     row = c.fetchone()
     conn.close()
 
@@ -76,23 +102,42 @@ def access():
         return jsonify({"error": "Not found"}), 404
 
     save_trace(create_trace("ACCESS", name, row[0]))
+
     return jsonify({"status": "Access recorded"})
 
+# ---------- REUSE CHECK (SEMANTIC, TF-IDF) ----------
 @app.route("/reuse_check", methods=["POST"])
 def reuse():
-    fp = semantic_fingerprint(request.json["text"])
+    text = request.json["text"]
+
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("SELECT name FROM documents WHERE fingerprint=?", (fp,))
+    c.execute("SELECT name, content FROM documents")
     rows = c.fetchall()
     conn.close()
 
-    reused = [r[0] for r in rows]
-    for doc in reused:
-        save_trace(create_trace("REUSE_DETECTED", doc, fp))
+    reused = []
 
-    return jsonify({"reused_in": reused})
+    for name, enc_content in rows:
+        original_text = decrypt_text(enc_content)
+        similarity = semantic_similarity(text, original_text)
 
+        if similarity >= 0.75:   # semantic threshold
+            reused.append(name)
+            save_trace(
+                create_trace(
+                    "REUSE_DETECTED",
+                    name,
+                    fingerprint(text)
+                )
+            )
+
+    return jsonify({
+        "reused_in": reused,
+        "similarity_method": "TF-IDF semantic similarity"
+    })
+
+# ---------- AUDIT ----------
 @app.route("/audit")
 def audit():
     conn = sqlite3.connect(DB)
@@ -115,17 +160,24 @@ def audit():
 
     return jsonify(logs)
 
+# ---------- TRACE STORAGE ----------
 def save_trace(trace):
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("INSERT INTO traces VALUES (?,?,?,?,?)",
-              (trace["action"], trace["document"], trace["fingerprint"],
-               trace["timestamp"], trace["proof"]))
+    c.execute(
+        "INSERT INTO traces VALUES (?,?,?,?,?)",
+        (
+            trace["action"],
+            trace["document"],
+            trace["fingerprint"],
+            trace["timestamp"],
+            trace["proof"]
+        )
+    )
     conn.commit()
     conn.close()
 
+# ---------- RUN ----------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-

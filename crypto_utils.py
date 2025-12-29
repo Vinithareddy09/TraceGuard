@@ -1,6 +1,8 @@
 import hashlib
-import gc
 from cryptography.fernet import Fernet
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 # ---------- ENCRYPTION ----------
 key = Fernet.generate_key()
@@ -12,40 +14,19 @@ def encrypt_text(text: str) -> bytes:
 def decrypt_text(enc: bytes) -> str:
     return cipher.decrypt(enc).decode()
 
-# ---------- LIGHTWEIGHT FINGERPRINT (ALWAYS ON) ----------
-def cheap_fingerprint(text: str) -> str:
+# ---------- FINGERPRINT ----------
+def fingerprint(text: str) -> str:
     """
-    Fast fingerprint (zero ML, zero memory risk)
+    Stable identifier for tracing
     """
     return hashlib.sha256(text.encode()).hexdigest()
 
-# ---------- LAZY SEMANTIC MODEL ----------
-_model = None
-
-def load_model():
+# ---------- SEMANTIC SIMILARITY (LIGHTWEIGHT) ----------
+def semantic_similarity(text1: str, text2: str) -> float:
     """
-    Loads semantic model ONLY when required
+    TF-IDF based semantic similarity (cloud-safe)
     """
-    global _model
-    if _model is None:
-        from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-    return _model
-
-def unload_model():
-    """
-    Frees memory immediately
-    """
-    global _model
-    _model = None
-    gc.collect()
-
-def semantic_fingerprint(text: str) -> str:
-    """
-    Semantic fingerprint (used ONLY after cheap match)
-    """
-    model = load_model()
-    vec = model.encode(text)
-    fp = hashlib.sha256(vec.tobytes()).hexdigest()
-    unload_model()
-    return fp
+    vectorizer = TfidfVectorizer(stop_words="english")
+    tfidf = vectorizer.fit_transform([text1, text2])
+    similarity = cosine_similarity(tfidf[0:1], tfidf[1:2])[0][0]
+    return float(similarity)
